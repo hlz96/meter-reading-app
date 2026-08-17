@@ -1,0 +1,28 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop      # 测试环境用 JPA 建表,不走 Flyway
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+  flyway:
+    enabled: false
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+app:
+  upload-dir: ./data/uploads
+  jwt:
+    secret: test-secret-key-at-least-32-bytes-long-for-hs256-xxxxx
+    access-token-ttl-seconds: 7200
+    refresh-token-ttl-seconds: 604800

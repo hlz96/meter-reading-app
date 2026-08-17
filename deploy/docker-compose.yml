@@ -1,0 +1,108 @@
+# ============================================================
+# 水电表抄表管理 App — 起步阶段一体化部署
+# 一台轻量云服务器全包:后端 + MySQL + Redis
+# 用法:docker compose up -d
+# ============================================================
+services:
+
+  mysql:
+    image: mysql:8.0
+    container_name: meter-mysql
+    restart: always
+    # 只监听本机回环,绝不暴露公网(安全红线)
+    ports:
+      - "127.0.0.1:3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+      - --slow_query_log=1
+      - --long_query_time=2
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - meter-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: meter-redis
+    restart: always
+    # 同样只监听本机
+    ports:
+      - "127.0.0.1:6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - meter-net
+
+  backend:
+    # 本地构建:上下文指向后端源码目录(与 deploy 同级)
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    image: ${BACKEND_IMAGE:-meter-backend:latest}
+    container_name: meter-backend
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"   # 只对本机,外部经 Nginx 反代
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # 容器间用服务名互访
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf-8&tinyInt1isBit=false
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      # 照片上传落本地磁盘目录(容器内路径)
+      APP_UPLOAD_DIR: /data/uploads
+      TZ: Asia/Shanghai
+    volumes:
+      - ./data/uploads:/data/uploads   # 照片持久化到宿主机
+    networks:
+      - meter-net
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: meter-nginx
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./data/uploads:/data/uploads:ro   # 让 Nginx 直接托管照片静态文件
+      - ./web:/usr/share/nginx/html:ro     # 前端静态页(部署时把 frontend/dist 放到 deploy/web)
+    networks:
+      - meter-net
+
+networks:
+  meter-net:
+    driver: bridge

@@ -1,0 +1,25 @@
+# ===== 敏感配置(绝不提交)=====
+cloud.env
+.env
+**/.env.local
+deploy/.env
+deploy/nginx/certs/
+*.pem
+*.key
+
+# ===== 构建产物 / 依赖 =====
+**/node_modules/
+**/target/
+**/dist/
+deploy/web/
+deploy/data/
+
+# ===== 运行时 / 日志 =====
+.local-run/
+*.log
+
+# ===== 系统 / 编辑器 =====
+.DS_Store
+.idea/
+.vscode/
+*.iml

@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: meter-reading-app
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/meter_reading?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8mb4}
+    username: ${SPRING_DATASOURCE_USERNAME:meter}
+    password: ${SPRING_DATASOURCE_PASSWORD:meter}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+  jpa:
+    hibernate:
+      ddl-auto: none          # 表结构由 Flyway 权威管理；关闭 Hibernate 启动校验(其对 TINYINT/枚举等按严格映射误报)
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+
+server:
+  port: 8080
+
+# 应用自定义配置
+app:
+  upload-dir: ${APP_UPLOAD_DIR:./data/uploads}
+  jwt:
+    secret: ${JWT_SECRET:dev-only-secret-please-override-in-prod-at-least-32-bytes}
+    access-token-ttl-seconds: 7200      # 2h
+    refresh-token-ttl-seconds: 604800    # 7d
+
+# 健康检查端点
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
